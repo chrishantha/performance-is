@@ -282,7 +282,7 @@ create_stack_command="aws cloudformation create-stack --stack-name $stack_name \
         ParameterKey=BastionInstanceType,ParameterValue=$bastion_instance_type \
         ParameterKey=JDK,ParameterValue=ORACLE_JDK8 \
         ParameterKey=WSO2ISLoadBalancerScheme,ParameterValue=internal \
-    --capabilities CAPABILITY_IAM"
+    --capabilities CAPABILITY_IAM --output json"
 
 echo ""
 echo "Creating stack..."
@@ -314,9 +314,9 @@ function exit_handler() {
 
 function get_is_instance_ip() {
 
-    wso2is1_auto_scaling_grp="$(aws cloudformation describe-stack-resources --stack-name $stack_id --logical-resource-id $1 | jq -r '.StackResources[].PhysicalResourceId')"
-    wso2is1_instance="$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $wso2is1_auto_scaling_grp | jq -r '.AutoScalingGroups[].Instances[].InstanceId')"
-    aws ec2 describe-instances --instance-ids $wso2is1_instance | jq -r '.Reservations[].Instances[].PrivateIpAddress'
+    wso2is1_auto_scaling_grp="$(aws cloudformation describe-stack-resources --stack-name $stack_id --logical-resource-id $1 --output json | jq -r '.StackResources[].PhysicalResourceId')"
+    wso2is1_instance="$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $wso2is1_auto_scaling_grp --output json | jq -r '.AutoScalingGroups[].Instances[].InstanceId')"
+    aws ec2 describe-instances --instance-ids $wso2is1_instance --output json | jq -r '.Reservations[].Instances[].PrivateIpAddress'
 }
 
 # Delete the stack in case of an error.
@@ -354,14 +354,14 @@ echo "RDS restarted. Time spent: $(echo "$end_time - $start_time" | bc) seconds.
 
 echo ""
 echo "Getting Bastion Node Public IP..."
-bastion_instance="$(aws cloudformation describe-stack-resources --stack-name $stack_id --logical-resource-id WSO2BastionInstance | jq -r '.StackResources[].PhysicalResourceId')"
-bastion_node_ip="$(aws ec2 describe-instances --instance-ids $bastion_instance | jq -r '.Reservations[].Instances[].PublicIpAddress')"
+bastion_instance="$(aws cloudformation describe-stack-resources --stack-name $stack_id --logical-resource-id WSO2BastionInstance --output json | jq -r '.StackResources[].PhysicalResourceId')"
+bastion_node_ip="$(aws ec2 describe-instances --instance-ids $bastion_instance --output json | jq -r '.Reservations[].Instances[].PublicIpAddress')"
 echo "Bastion Node Public IP: $bastion_node_ip"
 
 echo ""
 echo "Getting Puppet Master Private IP..."
-puppet_instance="$(aws cloudformation describe-stack-resources --stack-name $stack_id --logical-resource-id PuppetMaster | jq -r '.StackResources[].PhysicalResourceId')"
-puppet_master_ip="$(aws ec2 describe-instances --instance-ids $puppet_instance | jq -r '.Reservations[].Instances[].PrivateIpAddress')"
+puppet_instance="$(aws cloudformation describe-stack-resources --stack-name $stack_id --logical-resource-id PuppetMaster --output json | jq -r '.StackResources[].PhysicalResourceId')"
+puppet_master_ip="$(aws ec2 describe-instances --instance-ids $puppet_instance --output json | jq -r '.Reservations[].Instances[].PrivateIpAddress')"
 echo "Puppet Master Private IP: $puppet_master_ip"
 
 echo ""
@@ -381,8 +381,8 @@ echo "Load Balancer hostname: $lb_host"
 
 echo ""
 echo "Getting RDS Hostname..."
-rds_instance="$(aws cloudformation describe-stack-resources --stack-name $stack_id --logical-resource-id WSO2ISDBInstance | jq -r '.StackResources[].PhysicalResourceId')"
-rds_host="$(aws rds describe-db-instances --db-instance-identifier $rds_instance | jq -r '.DBInstances[].Endpoint.Address')"
+rds_instance="$(aws cloudformation describe-stack-resources --stack-name $stack_id --logical-resource-id WSO2ISDBInstance --output json | jq -r '.StackResources[].PhysicalResourceId')"
+rds_host="$(aws rds describe-db-instances --db-instance-identifier $rds_instance --output json | jq -r '.DBInstances[].Endpoint.Address')"
 echo "RDS Hostname: $rds_host"
 
 copy_bastion_setup_command="scp -i $key_file -o StrictHostKeyChecking=no $results_dir/setup/setup-bastion.sh ubuntu@$bastion_node_ip:/home/ubuntu/"
