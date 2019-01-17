@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+#!/bin/bash -e
 # Copyright (c) 2018, wso2 Inc. (http://wso2.org) All Rights Reserved.
 #
 # wso2 Inc. licenses this file to you under the Apache License,
@@ -19,6 +19,14 @@
 # Setup the bastion node to be used as the JMeter client.
 # ----------------------------------------------------------------------------
 
+# Make sure the script is running as root.
+if [ "$UID" -ne "0" ]; then
+    echo "You must be root to run $0. Try following"
+    echo "sudo $0"
+    exit 9
+fi
+
+export script_dir=$(dirname "$0")
 wso2_is_1_ip=""
 wso2_is_2_ip=""
 lb_host=""
@@ -87,74 +95,19 @@ if [[ -z $rds_host ]]; then
     exit 1
 fi
 
-function get_ssh_hostname() {
-    sudo -u ubuntu ssh -G $1 | awk '/^hostname / { print $2 }'
-}
-
-apt-get -y update
-apt-get -y install git
-apt-get install -y mysql-client
-
-echo ""
-echo "Installing maven 3.5"
-echo "============================================"
-wget http://www-us.apache.org/dist/maven/maven-3/3.5.4/binaries/apache-maven-3.5.4-bin.tar.gz
-tar -C /opt/ -xzf apache-maven-3.5.4-bin.tar.gz
-export M2_HOME="/opt/apache-maven-3.5.4"
-export PATH=$PATH:"/opt/apache-maven-3.5.4"
-update-alternatives --install "/usr/bin/mvn" "mvn" "/opt/apache-maven-3.5.4/bin/mvn" 0
-update-alternatives --set mvn /opt/apache-maven-3.5.4/bin/mvn
-rm apache-maven-3.5.4-bin.tar.gz
-
-echo ""
-echo "Installing Java..."
-echo "============================================"
-echo debconf shared/accepted-oracle-license-v1-1 select true | debconf-set-selections
-echo debconf shared/accepted-oracle-license-v1-1 seen true | debconf-set-selections
-add-apt-repository -y ppa:webupd8team/java
-apt-get update
-apt-get install -y oracle-java8-installer
-
-echo ""
-echo "Setting up required files..."
-echo "============================================"
-cd /home/ubuntu
-mkdir workspace
-cd workspace
-
-# todo remove after a proper release
-git clone https://github.com/chrishantha/performance-common
-cd performance-common
-mvn clean install
-cd ../
-
-# todo change repo url
-git clone https://github.com/vihanga-liyanage/performance-is
-cd performance-is
-# todo remove checkout command.
-git checkout is-5.7.0
-mvn clean install
-
-echo ""
-echo "Extracting is performance distribution..."
-echo "============================================"
-tar -C ../ -xzf distribution/target/is-performance-distribution-*.tar.gz
-
 echo ""
 echo "Running JMeter setup script..."
 echo "============================================"
-cd /home/ubuntu
-workspace/setup/setup-jmeter-client-is.sh -g -k /home/ubuntu/private_key.pem \
+$script_dir/setup-jmeter-client.sh -g -k /home/ubuntu/private_key.pem \
             -i /home/ubuntu \
             -c /home/ubuntu \
             -f /home/ubuntu/apache-jmeter-*.tgz \
+            -d /home/ubuntu/jdk-8u*-linux-x64.tar.gz \
             -a wso2is1 -n $wso2_is_1_ip \
             -a wso2is2 -n $wso2_is_2_ip \
             -a loadbalancer -n $lb_host \
-            -a rds -n $rds_host
-sudo chown -R ubuntu:ubuntu workspace
-sudo chown -R ubuntu:ubuntu apache-jmeter-*
-sudo chown -R ubuntu:ubuntu /tmp/jmeter.log
+            -a rds -n $rds_host \
+            -p mysql-client
 
 echo ""
 echo "Setting up IS instances..."

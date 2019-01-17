@@ -14,59 +14,42 @@
     # See the License for the specific language governing permissions and
     # limitations under the License.
 -->
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
          xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
-    <modelVersion>4.0.0</modelVersion>
+    <parent>
+        <groupId>org.wso2</groupId>
+        <artifactId>wso2</artifactId>
+        <version>5</version>
+    </parent>
 
-    <groupId>org.wso2.carbon</groupId>
-    <artifactId>is-performance</artifactId>
+    <modelVersion>4.0.0</modelVersion>
+    <groupId>org.wso2.performance.is</groupId>
+    <artifactId>performance-is</artifactId>
+    <version>0.1.0-SNAPSHOT</version>
     <packaging>pom</packaging>
-    <version>1.0-SNAPSHOT</version>
+    <name>Artifacts for WSO2 Identity Server Performance Tests</name>
+    <inceptionYear>2018</inceptionYear>
+    <url>https://wso2.com/identity-and-access-management</url>
+
+    <licenses>
+        <license>
+            <name>The Apache Software License, Version 2.0</name>
+            <url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
+            <distribution>repo</distribution>
+        </license>
+    </licenses>
+
+    <scm>
+        <url>https://github.com/wso2/performance-is.git</url>
+        <developerConnection>scm:git:https://github.com/wso2/performance-is.git</developerConnection>
+        <connection>scm:git:https://github.com/wso2/performance-is.git</connection>
+        <tag>HEAD</tag>
+    </scm>
 
     <modules>
         <module>distribution</module>
         <module>cloudformation</module>
     </modules>
-
-    <name>IS - Artifacts for IS Performance Tests</name>
-    <inceptionYear>2018</inceptionYear>
-    <url>https://wso2.com/identity-and-access-management</url>
-
-    <repositories>
-        <repository>
-            <id>wso2.releases</id>
-            <name>WSO2 Releases Repository</name>
-            <url>http://maven.wso2.org/nexus/content/repositories/releases/</url>
-            <releases>
-                <enabled>true</enabled>
-                <updatePolicy>daily</updatePolicy>
-                <checksumPolicy>ignore</checksumPolicy>
-            </releases>
-        </repository>
-        <repository>
-            <id>wso2.snapshots</id>
-            <name>WSO2 Snapshot Repository</name>
-            <url>http://maven.wso2.org/nexus/content/repositories/snapshots/</url>
-            <snapshots>
-                <enabled>true</enabled>
-                <updatePolicy>daily</updatePolicy>
-            </snapshots>
-            <releases>
-                <enabled>false</enabled>
-            </releases>
-        </repository>
-        <repository>
-            <id>wso2-nexus</id>
-            <name>WSO2 internal Repository</name>
-            <url>http://maven.wso2.org/nexus/content/groups/wso2-public/</url>
-            <releases>
-                <enabled>true</enabled>
-                <updatePolicy>daily</updatePolicy>
-                <checksumPolicy>ignore</checksumPolicy>
-            </releases>
-        </repository>
-    </repositories>
 
     <dependencyManagement>
         <dependencies>
@@ -76,14 +59,65 @@
                 <version>${performance.common.version}</version>
                 <type>tar.gz</type>
             </dependency>
-            <dependency>
-                <groupId>io.ballerina</groupId>
-                <artifactId>ballerina-performance-distribution</artifactId>
-                <version>${ballerina.performance.version}</version>
-                <type>tar.gz</type>
-            </dependency>
         </dependencies>
     </dependencyManagement>
+
+    <build>
+        <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-release-plugin</artifactId>
+                <version>${maven.release.plugin.version}</version>
+                <configuration>
+                    <preparationGoals>clean install</preparationGoals>
+                    <autoVersionSubmodules>true</autoVersionSubmodules>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-deploy-plugin</artifactId>
+                <version>${maven.deploy.plugin.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>${maven.compiler.plugin.version}</version>
+                <configuration>
+                    <source>1.8</source>
+                    <target>1.8</target>
+                    <compilerArgument>-Xlint:unchecked</compilerArgument>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-javadoc-plugin</artifactId>
+                <version>${maven.javadoc.plugin.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-source-plugin</artifactId>
+                <version>${maven.source.plugin.version}</version>
+            </plugin>
+            <plugin>
+                <groupId>org.codehaus.mojo</groupId>
+                <artifactId>findbugs-maven-plugin</artifactId>
+                <version>${findbugs.maven.plugin.version}</version>
+                <configuration>
+                    <effort>Max</effort>
+                    <threshold>Low</threshold>
+                    <xmlOutput>true</xmlOutput>
+                    <excludeFilterFile>${project.parent.basedir}/findbugs-exclude.xml</excludeFilterFile>
+                </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+        </plugins>
+    </build>
 
     <profiles>
         <profile>
@@ -98,7 +132,6 @@
                             <excludes>
                                 <exclude>**/*.md</exclude>
                                 <exclude>**/*.jmx</exclude>
-                                <exclude>**/*.bal</exclude>
                                 <exclude>**/dependency-reduced-pom.xml</exclude>
                             </excludes>
                         </configuration>
@@ -116,24 +149,18 @@
         </profile>
     </profiles>
 
-    <distributionManagement>
-        <repository>
-            <id>nexus-releases</id>
-            <name>WSO2 Nexus Release Repository</name>
-            <url>http://maven.wso2.org/nexus/service/local/staging/deploy/maven2/</url>
-        </repository>
-        <snapshotRepository>
-            <id>wso2.snapshots</id>
-            <name>WSO2 Snapshot Repository</name>
-            <url>http://maven.wso2.org/nexus/content/repositories/snapshots/</url>
-        </snapshotRepository>
-    </distributionManagement>
-
     <properties>
-        <project.scm.id>ballerina-scm-server</project.scm.id>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+        <performance.is.version>0.1.0-SNAPSHOT</performance.is.version>
         <performance.common.version>0.2.1-SNAPSHOT</performance.common.version>
-        <apache.rat.plugin.version>0.11</apache.rat.plugin.version>
+        <!-- Maven Plugins -->
+        <maven.release.plugin.version>2.5.3</maven.release.plugin.version>
+        <maven.deploy.plugin.version>2.8.2</maven.deploy.plugin.version>
+        <maven.compiler.plugin.version>3.6.1</maven.compiler.plugin.version>
+        <maven.javadoc.plugin.version>2.10.4</maven.javadoc.plugin.version>
+        <maven.source.plugin.version>3.0.1</maven.source.plugin.version>
+        <maven.shade.plugin.version>3.1.1</maven.shade.plugin.version>
+        <apache.rat.plugin.version>0.12</apache.rat.plugin.version>
+        <findbugs.maven.plugin.version>3.0.4</findbugs.maven.plugin.version>
     </properties>
-
 </project>

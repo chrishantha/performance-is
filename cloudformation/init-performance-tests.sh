@@ -22,11 +22,16 @@
 # Cloud Formation parameters.
 stack_name="is-performance-test-stack"
 
+performance_scripts_distribution=""
+default_results_dir="results-$(date +%Y%m%d%H%M%S)"
+results_dir="$default_results_dir"
 key_file=""
 aws_access_key=""
 aws_access_secret=""
 certificate_name=""
-jmeter_setup=""
+jmeter_distribution=""
+oracle_jdk_distribution=""
+gcviewer_jar_path=""
 wum_username=""
 wum_password=""
 default_db_username="wso2carbon"
@@ -35,13 +40,11 @@ default_db_password="wso2carbon"
 db_password="$default_db_password"
 default_is_instance_type=c5.large
 wso2_is_instance_type="$default_is_instance_type"
-default_bastion_instance_type=m4.large
+default_bastion_instance_type=c5.xlarge
 bastion_instance_type="$default_bastion_instance_type"
 
 script_start_time=$(date +%s)
 script_dir=$(dirname "$0")
-results_dir="$PWD/results-$(date +%Y%m%d%H%M%S)"
-is_performance_distribution=""
 is_installer_url=""
 default_minimum_stack_creation_wait_time=10
 minimum_stack_creation_wait_time="$default_minimum_stack_creation_wait_time"
@@ -49,18 +52,24 @@ minimum_stack_creation_wait_time="$default_minimum_stack_creation_wait_time"
 function usage() {
     echo ""
     echo "Usage: "
-    echo "$0 -k <key_file> -a <aws_access_key> -s <aws_access_secret>"
-    echo "   -c <certificate_name> -j <jmeter_setup_path>"
+    echo "$0 -f <performance_scripts_distribution> [-d <results_dir>] -k <key_file>"
+    echo "   -a <aws_access_key> -s <aws_access_secret>"
+    echo "   -c <certificate_name>"
+    echo "   -j <jmeter_distribution> -o <oracle_jdk_distribution> -g <gcviewer_jar_path>"
     echo "   [-n <wum_username>] [-e <wum_password>]"
     echo "   [-u <db_username>] [-p <db_password>]"
     echo "   [-i <wso2_is_instance_type>] [-b <bastion_instance_type>]"
     echo "   [-w <minimum_stack_creation_wait_time>] [-h]"
     echo "   -- [run_performance_tests_options]"
     echo ""
+    echo "-f: Distribution containing the scripts to run performance tests."
+    echo "-d: The results directory. Default value is a directory with current time. For example, $default_results_dir."
     echo "-k: The Amazon EC2 key file to be used to access the instances."
     echo "-a: The AWS access key."
     echo "-s: The AWS access secret."
-    echo "-j: The path to JMeter setup."
+    echo "-j: Apache JMeter (tgz) distribution."
+    echo "-o: Oracle JDK distribution."
+    echo "-g: Path of GCViewer Jar file, which will be used to analyze GC logs."
     echo "-c: The name of the IAM certificate."
     echo "-n: The WUM username."
     echo "-e: The WUM password."
@@ -74,8 +83,14 @@ function usage() {
     echo ""
 }
 
-while getopts "k:a:s:c:j:n:e:u:p:i:b:w:h" opts; do
+while getopts "f:d:k:a:s:c:j:o:g:n:e:u:p:i:b:w:h" opts; do
     case $opts in
+    f)
+        performance_scripts_distribution=${OPTARG}
+        ;;
+    d)
+        results_dir=${OPTARG}
+        ;;
     k)
         key_file=${OPTARG}
         ;;
@@ -89,7 +104,13 @@ while getopts "k:a:s:c:j:n:e:u:p:i:b:w:h" opts; do
         certificate_name=${OPTARG}
         ;;
     j)
-        jmeter_setup=${OPTARG}
+        jmeter_distribution=${OPTARG}
+        ;;
+    o)
+        oracle_jdk_distribution=${OPTARG}
+        ;;
+    g)
+        gcviewer_jar_path=${OPTARG}
         ;;
     n)
         wum_username=${OPTARG}
@@ -126,6 +147,28 @@ shift "$((OPTIND - 1))"
 
 run_performance_tests_options="$@"
 
+if [[ ! -f $performance_scripts_distribution ]]; then
+    echo "Please provide Performance Distribution."
+    exit 1
+fi
+
+performance_scripts_distribution_filename=$(basename $performance_scripts_distribution)
+
+if [[ ${performance_scripts_distribution_filename: -7} != ".tar.gz" ]]; then
+    echo "Performance Distribution must have .tar.gz extension"
+    exit 1
+fi
+
+if [[ -z $results_dir ]]; then
+    echo "Please provide a name to the results directory."
+    exit 1
+fi
+
+if [[ -d $results_dir ]]; then
+    echo "Results directory already exists. Please give a new name to the results directory."
+    exit 1
+fi
+
 if [[ ! -f $key_file ]]; then
     echo "Please provide the key file."
     exit 1
@@ -156,8 +199,28 @@ if [[ -z $db_password ]]; then
     exit 1
 fi
 
-if [[ -z $jmeter_setup ]]; then
-    echo "Please provide the path to JMeter setup."
+if [[ ! -f $jmeter_distribution ]]; then
+    echo "Please specify the JMeter distribution file (apache-jmeter-*.tgz)"
+    exit 1
+fi
+
+if [[ ${jmeter_distribution: -4} != ".tgz" ]]; then
+    echo "Please provide the JMeter tgz distribution file (apache-jmeter-*.tgz)"
+    exit 1
+fi
+
+if [[ ! -f $oracle_jdk_distribution ]]; then
+    echo "Please specify the Oracle JDK distribution file (jdk-8u*-linux-x64.tar.gz)"
+    exit 1
+fi
+
+if ! [[ $oracle_jdk_distribution =~ ^jdk-8u[0-9]+-linux-x64.tar.gz$ ]]; then
+    echo "Please specify a valid Oracle JDK distribution file (jdk-8u*-linux-x64.tar.gz)"
+    exit 1
+fi
+
+if [[ ! -f $gcviewer_jar_path ]]; then
+    echo "Please specify the path to GCViewer JAR file."
     exit 1
 fi
 
@@ -231,13 +294,18 @@ function measure_time() {
     echo "$duration"
 }
 
+# Use absolute path
+results_dir=$(realpath $results_dir)
 mkdir $results_dir
-echo ""
 echo "Results will be downloaded to $results_dir"
+# Get absolute path of GCViewer
+gcviewer_jar_path=$(realpath $gcviewer_jar_path)
+# Copy scripts to results directory (in case if we need to use the scripts again)
+cp $performance_scripts_distribution $results_dir
 
 echo ""
 echo "Extracting IS Performance Distribution to $results_dir"
-tar -xf ../distribution/target/is-performance-distribution-*.tar.gz -C $results_dir
+tar -xf $performance_scripts_distribution -C $results_dir
 
 estimate_command="$results_dir/jmeter/run-performance-tests.sh -t ${run_performance_tests_options[@]}"
 echo ""
@@ -265,7 +333,7 @@ test_parameters_json+=' | .["bastion_node_ec2_instance_type"]=$bastion_node_ec2_
 jq -n \
     --arg is_nodes_ec2_instance_type "$wso2_is_instance_type" \
     --arg bastion_node_ec2_instance_type "$bastion_instance_type" \
-    "$test_parameters_json" > $results_dir/cf-test-metadata.json
+    "$test_parameters_json" >$results_dir/cf-test-metadata.json
 
 stack_create_start_time=$(date +%s)
 create_stack_command="aws cloudformation create-stack --stack-name $stack_name \
@@ -288,7 +356,7 @@ echo ""
 echo "Creating stack..."
 echo "$create_stack_command"
 stack_id="$($create_stack_command)"
-stack_id=$(echo $stack_id|jq -r .StackId)
+stack_id=$(echo $stack_id | jq -r .StackId)
 
 function exit_handler() {
     # Get stack events
@@ -313,7 +381,6 @@ function exit_handler() {
 }
 
 function get_is_instance_ip() {
-
     wso2is1_auto_scaling_grp="$(aws cloudformation describe-stack-resources --stack-name $stack_id --logical-resource-id $1 --output json | jq -r '.StackResources[].PhysicalResourceId')"
     wso2is1_instance="$(aws autoscaling describe-auto-scaling-groups --auto-scaling-group-names $wso2is1_auto_scaling_grp --output json | jq -r '.AutoScalingGroups[].Instances[].InstanceId')"
     aws ec2 describe-instances --instance-ids $wso2is1_instance --output json | jq -r '.Reservations[].Instances[].PrivateIpAddress'
@@ -385,25 +452,28 @@ rds_instance="$(aws cloudformation describe-stack-resources --stack-name $stack_
 rds_host="$(aws rds describe-db-instances --db-instance-identifier $rds_instance --output json | jq -r '.DBInstances[].Endpoint.Address')"
 echo "RDS Hostname: $rds_host"
 
-copy_bastion_setup_command="scp -i $key_file -o StrictHostKeyChecking=no $results_dir/setup/setup-bastion.sh ubuntu@$bastion_node_ip:/home/ubuntu/"
+copy_files_command="scp -i $key_file -o StrictHostKeyChecking=no $performance_scripts_distribution $jmeter_distribution $oracle_jdk_distribution ubuntu@$bastion_node_ip:"
 copy_key_file_command="scp -i $key_file -o StrictHostKeyChecking=no $key_file ubuntu@$bastion_node_ip:/home/ubuntu/private_key.pem"
-copy_jmeter_setup_command="scp -i $key_file -o StrictHostKeyChecking=no $jmeter_setup ubuntu@$bastion_node_ip:/home/ubuntu/"
 echo ""
 echo "Copying files to Bastion node..."
-echo $copy_bastion_setup_command
-$copy_bastion_setup_command
+echo $copy_files_command
+$copy_files_command
 echo $copy_key_file_command
 $copy_key_file_command
-echo $copy_jmeter_setup_command
-$copy_jmeter_setup_command
 
-setup_bastion_node_command="ssh -i $key_file -o "StrictHostKeyChecking=no" -t ubuntu@$bastion_node_ip sudo ./setup-bastion.sh -w $wso2_is_1_ip -i $wso2_is_2_ip -l $lb_host -r $rds_host -p $puppet_master_ip"
+echo ""
+echo "Extracting scripts in Bastion node..."
+extract_command="ssh -i $key_file -o "StrictHostKeyChecking=no" -T ubuntu@$bastion_node_ip tar -xf $performance_scripts_distribution_filename"
+echo $extract_command
+$extract_command
+
+setup_bastion_node_command="ssh -i $key_file -o "StrictHostKeyChecking=no" -T ubuntu@$bastion_node_ip sudo ./setup/setup-bastion.sh -w $wso2_is_1_ip -i $wso2_is_2_ip -l $lb_host -r $rds_host -p $puppet_master_ip"
 echo ""
 echo "Running Bastion Node setup script: $setup_bastion_node_command"
 # Handle any error and let the script continue.
 $setup_bastion_node_command || echo "Remote ssh command failed."
 
-run_performance_tests_command="./workspace/jmeter/run-performance-tests.sh ${run_performance_tests_options[@]}"
+run_performance_tests_command="./jmeter/run-performance-tests.sh ${run_performance_tests_options[@]}"
 run_remote_tests="ssh -i $key_file -o "StrictHostKeyChecking=no" -t ubuntu@$bastion_node_ip $run_performance_tests_command"
 echo ""
 echo "Running performance tests: $run_remote_tests"
@@ -421,8 +491,7 @@ echo ""
 echo "Creating summary.csv..."
 cd $results_dir
 unzip -q results.zip
-wget -q http://sourceforge.net/projects/gcviewer/files/gcviewer-1.35.jar/download -O gcviewer.jar
-$results_dir/jmeter/create-summary-csv.sh -d results -n "WSO2 Identity Server" -p wso2is -c "Heap Size" -c "Concurrent Users" -r "([0-9]+[a-zA-Z])_heap" -r "([0-9]+)_users" -i -l -k 2 -g gcviewer.jar
+./jmeter/create-summary-csv.sh -d results -n "WSO2 Identity Server" -p wso2is -c "Heap Size" -c "Concurrent Users" -r "([0-9]+[a-zA-Z])_heap" -r "([0-9]+)_users" -i -l -k 2 -g "${gcviewer_jar_path}"
 
 echo "Creating summary results markdown file..."
 ./jmeter/create-summary-markdown.py --json-files cf-test-metadata.json results/test-metadata.json --column-names \
