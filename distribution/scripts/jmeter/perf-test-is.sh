@@ -331,7 +331,7 @@ function run_test_data_scripts() {
     echo "=========================================================================================="
     declare -a scripts=("TestData_Add_Super_Tenant_Users.jmx" "TestData_Add_OAuth_Apps.jmx" "TestData_Add_SAML_Apps.jmx")
 #    declare -a scripts=("TestData_Add_Super_Tenant_Users.jmx" "TestData_Add_OAuth_Apps.jmx" "TestData_Add_SAML_Apps.jmx" "TestData_Add_Tenants.jmx" "TestData_Add_Tenant_Users.jmx")
-    setup_dir="/home/ubuntu/workspace/jmeter/setup"
+    setup_dir="/home/ubuntu/jmeter/setup"
 
     for script in ${scripts[@]}; do
         script_file="$setup_dir/$script"
@@ -486,7 +486,7 @@ function test_scenarios() {
 
                 write_server_metrics jmeter
 
-                $HOME/workspace/jtl-splitter/jtl-splitter.sh -- -f ${report_location}/results.jtl -t $warm_up_time -s
+                $HOME/jtl-splitter/jtl-splitter.sh -- -f ${report_location}/results.jtl -t $warm_up_time -s
 
                 echo ""
                 echo "Zipping JTL files in ${report_location}"

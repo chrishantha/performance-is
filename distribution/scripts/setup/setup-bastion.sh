@@ -116,22 +116,22 @@ wso2is_1_host_alias=wso2is1
 wso2is_2_host_alias=wso2is2
 
 sudo -u ubuntu ssh $wso2is_1_host_alias mkdir sar setup
-sudo -u ubuntu scp workspace/setup/setup-common.sh $wso2is_1_host_alias:/home/ubuntu/setup/
-sudo -u ubuntu scp workspace/sar/install-sar.sh $wso2is_1_host_alias:/home/ubuntu/sar/
-sudo -u ubuntu scp workspace/is/restart-is.sh $wso2is_1_host_alias:/home/ubuntu/
+sudo -u ubuntu scp $script_dir/setup-common.sh $wso2is_1_host_alias:/home/ubuntu/setup/
+sudo -u ubuntu scp $script_dir/../sar/install-sar.sh $wso2is_1_host_alias:/home/ubuntu/sar/
+sudo -u ubuntu scp $script_dir/../is/restart-is.sh $wso2is_1_host_alias:/home/ubuntu/
 sudo -u ubuntu ssh $wso2is_1_host_alias sudo ./setup/setup-common.sh -p zip -p jq -p bc
 
 sudo -u ubuntu ssh $wso2is_2_host_alias mkdir sar setup
-sudo -u ubuntu scp workspace/setup/setup-common.sh $wso2is_2_host_alias:/home/ubuntu/setup/
-sudo -u ubuntu scp workspace/sar/install-sar.sh $wso2is_2_host_alias:/home/ubuntu/sar/
-sudo -u ubuntu scp workspace/is/restart-is.sh $wso2is_2_host_alias:/home/ubuntu/
+sudo -u ubuntu scp $script_dir/setup-common.sh $wso2is_2_host_alias:/home/ubuntu/setup/
+sudo -u ubuntu scp $script_dir/../sar/install-sar.sh $wso2is_2_host_alias:/home/ubuntu/sar/
+sudo -u ubuntu scp $script_dir/../is/restart-is.sh $wso2is_2_host_alias:/home/ubuntu/
 sudo -u ubuntu ssh $wso2is_2_host_alias sudo ./setup/setup-common.sh -p zip -p jq -p bc
 
 if [ ! -z "$puppet_ip" -a "$puppet_ip"!="" ]; then
     echo ""
     echo "Applying tuning params to puppet master..."
     echo "============================================"
-    scp -i private_key.pem -o StrictHostKeyChecking=no workspace/setup/setup-puppet.sh ubuntu@$puppet_ip:/home/ubuntu/
+    scp -i private_key.pem -o StrictHostKeyChecking=no $script_dir/setup-puppet.sh ubuntu@$puppet_ip:/home/ubuntu/
     ssh -i private_key.pem -o StrictHostKeyChecking=no ubuntu@$puppet_ip ./setup-puppet.sh
 
     echo ""
