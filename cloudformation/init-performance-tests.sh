@@ -476,7 +476,7 @@ echo "Running Bastion Node setup script: $setup_bastion_node_command"
 $setup_bastion_node_command || echo "Remote ssh command failed."
 
 run_performance_tests_command="./jmeter/run-performance-tests.sh ${run_performance_tests_options[@]}"
-run_remote_tests="ssh -i $key_file -o "StrictHostKeyChecking=no" -t ubuntu@$bastion_node_ip $run_performance_tests_command"
+run_remote_tests="ssh -i $key_file -o "StrictHostKeyChecking=no" -T ubuntu@$bastion_node_ip $run_performance_tests_command"
 echo ""
 echo "Running performance tests: $run_remote_tests"
 $run_remote_tests || echo "Remote test ssh command failed."
